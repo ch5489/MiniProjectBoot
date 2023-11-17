@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+		PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+		"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+		
+<mapper namespace="com.model2.mvc.service.purchase.dao.PurchaseDAO">
+
+
+	<resultMap id="purchaseSelectMap" type="purchase">
+		<result property="tranNo"			column="TRAN_NO"			jdbcType="NUMERIC"/>
+		<result property="paymentOption"	column="PAYMENT_OPTION"		jdbcType="CHAR"/>
+		<result property="receiverName"		column="RECEIVER_NAME"		jdbcType="VARCHAR"/>
+		<result property="receiverPhone"	column="RECEIVER_PHONE"		jdbcType="VARCHAR"/>
+		<result property="dlvyAddr"			column="DEMAILADDR"			jdbcType="VARCHAR"/>
+		<result property="dlvyRequest"		column="DLVY_REQUEST"		jdbcType="VARCHAR"/>
+		<result property="tranCode"			column="TRAN_STATUS_CODE"	jdbcType="VARCHAR" />
+		<result property="orderDate"		column="ORDER_DATE"			jdbcType="DATE"/>
+		<result property="dlvyDate"			column="DLVY_DATE"			jdbcType="DATE"/>
+		
+		<association property="purchaseProd"  javaType="product">
+			<id property="prodNo" column="prod_no" jdbcType="NUMERIC"/>
+			<result property="prodName" column="prod_name" jdbcType="VARCHAR"/>
+			<result property="prodDetail" column="prod_detail" jdbcType="VARCHAR"/>
+			<result property="manuDate" column="manufacture_day" jdbcType="VARCHAR"/>
+			<result property="price" column="price" jdbcType="NUMERIC"/>
+			<result property="fileName" column="image_file" jdbcType="VARCHAR"/>
+			<result property="regDate" column="prod_reg_date" jdbcType="DATE"/>
+			<result property="proTranCode" column="TRAN_STATUS_CODE" jdbcType="VARCHAR"/>
+		</association>
+		
+		<association property="buyer"  javaType="user">
+			<id property="userId" 		column="buyer_id" 		jdbcType="VARCHAR"/>
+			<result property="userName" column="user_name" 		jdbcType="VARCHAR"/>
+			<result property="password" column="password"	 	jdbcType="VARCHAR"/>
+			<result property="role"		column="role"			jdbcType="VARCHAR"/>
+			<result property="ssn" 		column="ssn" 			jdbcType="VARCHAR"/>
+			<result property="phone" 	column="cell_phone" 	jdbcType="VARCHAR"/>
+			<result property="addr" 	column="addr" 			jdbcType="VARCHAR"/>
+			<result property="email"	column="email" 			jdbcType="VARCHAR"/>
+			<result property="regDate"	column="user_reg_date"	jdbcType="DATE"/>
+		</association>
+	</resultMap>
+	
+	<insert id="addPurchase"	parameterType="purchase">
+		INSERT
+		INTO TRANSACTION ( tran_no , PROD_NO , BUYER_ID , PAYMENT_OPTION , RECEIVER_NAME, RECEIVER_PHONE, DEMAILADDR, DLVY_REQUEST , TRAN_STATUS_CODE, ORDER_DATE, DLVY_DATE )
+		VALUES (seq_transaction_tran_no.NEXTVAL, 
+				#{purchaseProd.prodNo}, 
+				#{buyer.userId}, 
+				#{paymentOption:CHAR}, 
+				#{receiverName:VARCHAR}, 
+				#{receiverPhone:VARCHAR}, 
+				#{dlvyAddr:VARCHAR}, 
+				#{dlvyRequest:VARCHAR}, 
+				'1', 
+				SYSDATE, 
+				#{dlvyDate:DATE})
+	
+	</insert>
+	
+	 <select 	id="getPurchase"	parameterType="int"	resultMap="purchaseSelectMap">
+		SELECT
+		* 		
+		FROM TRANSACTION 
+		WHERE TRAN_NO = #{tranNo}
+	 </select>
+	 
+	  <select 	id="getPurchaseProd"	parameterType="int"	resultMap="purchaseSelectMap">
+		SELECT
+		* 		
+		FROM TRANSACTION 
+		WHERE PROD_NO = #{prodNo}
+	 </select>
+	 
+	<update	id="updatePurchase"	parameterType="purchase" >
+	   	UPDATE TRANSACTION
+	   	<set>
+	   		PAYMENT_OPTION 			= #{paymentOption} ,
+			RECEIVER_NAME			= #{receiverName},
+			RECEIVER_PHONE 			= #{receiverPhone} ,
+			DEMAILADDR 				= #{dlvyAddr},
+			DLVY_REQUEST 			= #{dlvyRequest} ,
+			DLVY_DATE 				= #{dlvyDate}
+	   	</set>
+	   	WHERE TRAN_NO = #{tranNo}
+	 </update>
+	 
+	 <select  id="getPurchaseList"  parameterType="search"	resultMap="purchaseSelectMap">
+	  	SELECT *
+	  	FROM (	SELECT inner_table.* , ROWNUM AS row_seq
+	  					FROM		(	SELECT tran_no, BUYER_ID, RECEIVER_NAME, RECEIVER_PHONE, TRAN_STATUS_CODE, prod_no
+											FROM TRANSACTION
+											
+											<where>	
+											BUYER_ID = #{buyerId}
+											</where>
+											ORDER BY tran_no ) inner_table
+						WHERE ROWNUM &lt;= #{endRowNum} )
+		WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum} 
+	 </select>
+	
+	 <select  id="getTotalCount"  parameterType="search"	 resultType="int">
+	  	SELECT COUNT(*)
+	  	FROM(	SELECT *
+				FROM TRANSACTION
+						
+					<where>
+								
+						buyer_id = #{buyerId}
+					</where>
+			) countTable						
+	 </select>
+	 
+	 <select  id="getSaleList"  parameterType="search"	 resultMap="purchaseSelectMap">
+	  	<!-- SELECT * -->
+	  	SELECT *
+		FROM (	SELECT inner_table.* , ROWNUM AS row_seq
+		       
+		        FROM ( SELECT  p.prod_no AS prod_no, t.TRAN_STATUS_CODE AS TRAN_STATUS_CODE
+		                FROM PRODUCT p left join (
+		                select Distinct prod_no, TRAN_STATUS_CODE
+		                from
+		                transaction) t
+               			 on t.prod_no = p.prod_no
+		                <if test="searchCondition != null">
+							<where>
+								<if test="searchCondition == 0 and searchKeyword !='' ">
+					 				p.PROD_NO LIKE '%'||#{searchKeyword}||'%'
+								</if>
+								<if test="searchCondition == 1 and searchKeyword !='' ">
+					 				p.PROD_NAME LIKE '%'||#{searchKeyword}||'%'
+								</if>
+								<if test="searchCondition == 2 and searchKeyword !='' ">
+					 				p.PRICE LIKE '%'||#{searchKeyword}||'%'
+								</if>
+							</where>
+						</if>
+		                ORDER BY prod_no ) inner_table
+		        WHERE ROWNUM &lt;= #{endRowNum} )
+		WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum} 
+		
+		
+		
+		<!--       SELECT *
+      FROM(   select it.*, ROWNUM AS row_seq
+              from (  select 
+                      t.tran_no, t.tran_status_code, p.prod_no, p.prod_name, p.price, t.order_date
+                      from product p, transaction t 
+                      where p.prod_no = t.prod_no
+                      order by t.order_date)it
+              WHERE ROWNUM &lt;= #{endRowNum})
+      WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum}		
+       
+      SELECT *
+        FROM (   SELECT inner_table.* , ROWNUM AS row_seq
+                    FROM      (   SELECT 
+                                p.prod_no, p.prod_name , p.price , p.reg_date, t.tran_status_code, p.image_file
+                              FROM product p LEFT JOIN transaction t
+                              ON p.prod_no = t.prod_no
+                                 <if test="searchCondition != null">
+                                    <where>
+                                       <if test="searchCondition == 0 and searchKeyword !='' ">
+                                           p.prod_no = ${searchKeyword}
+                                       </if>
+                                       <if test="searchCondition == 1 and searchKeyword !='' ">
+                                           p.prod_name LIKE '%' || #{searchKeyword} || '%'
+                                       </if>
+                                       <if test="searchCondition == 2 and searchKeyword !='' ">
+                                           p.price = ${searchKeyword}
+                                       </if>
+                                    </where>
+                                 </if>
+                                 ORDER BY p.prod_no ) inner_table
+                  WHERE ROWNUM &lt;= #{endRowNum} )
+      WHERE row_seq BETWEEN #{startRowNum} AND #{endRowNum} 	-->		
+	 </select>
+	 
+	 <update	id="updateTranCode"	parameterType="purchase" >
+	   	UPDATE TRANSACTION
+	   	<set>
+	   		
+			TRAN_STATUS_CODE	= #{tranCode}
+	   	</set>
+	   	WHERE PROD_NO = #{purchaseProd.prodNo}
+	 </update>
+ 
+</mapper>
